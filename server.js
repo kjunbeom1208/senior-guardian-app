@@ -5,7 +5,7 @@ import cors from "cors";
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 
-const SolapiMessageService = require("solapi").default;
+import coolsms from "coolsms-node-sdk";
 
 
 dotenv.config();
@@ -26,8 +26,8 @@ const db = await mysql.createPool({
 });
 
 
-
-const messageService = new SolapiMessageService(
+const SMS = coolsms.default;
+const messageService = new SMS(
   process.env.COOLSMS_API_KEY,
   process.env.COOLSMS_API_SECRET
 );
