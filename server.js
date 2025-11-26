@@ -4,7 +4,8 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
-import solapi from "solapi";
+import SolapiMessageService from "solapi";
+
 
 dotenv.config();
 
@@ -25,7 +26,7 @@ const db = await mysql.createPool({
 
 
 
-const messageService = new solapi(
+const messageService = new SolapiMessageService(
   process.env.COOLSMS_API_KEY,
   process.env.COOLSMS_API_SECRET
 );
