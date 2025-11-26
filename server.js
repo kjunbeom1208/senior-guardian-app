@@ -125,22 +125,36 @@ app.post("/api/report", async (req, res) => {
 
 // ✅ 가족 연락처 저장 API
 app.post("/api/save-family", async (req, res) => {
-  const { phone } = req.body;
-  try {
-    // 이미 존재하는지 확인
-    const [rows] = await db.query("SELECT * FROM family_contacts WHERE phone = ?", [phone]);
+  const { phone } = req.body;
 
-    if (rows.length > 0) {
-      return res.json({ success: false, message: "이미 등록된 번호입니다." });
-    }
+  // 1. 값 유효성 검사
+  if (!phone) {
+    return res.status(400).json({ success: false, message: "전화번호를 입력해야 합니다." });
+  }
+  
+  // 2. 전화번호 정규화: 하이픈 및 특수문자 제거
+  const normalizedPhone = phone.replace(/[^0-9]/g, "");
 
-    // 새 번호 저장
-    await db.query("INSERT INTO family_contacts (phone) VALUES (?)", [phone]);
-    res.json({ success: true, message: "가족 연락처가 저장되었습니다." });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: "DB 저장 실패" });
+  // 3. 정규화된 값이 비어있는지 확인
+  if (normalizedPhone.length === 0) {
+      return res.status(400).json({ success: false, message: "유효한 전화번호 형식이어야 합니다." });
   }
+
+  try {
+    // 이미 존재하는지 확인 (수정: normalizedPhone 사용)
+    const [rows] = await db.query("SELECT * FROM family_contacts WHERE phone = ?", [normalizedPhone]);
+
+    if (rows.length > 0) {
+      return res.json({ success: false, message: "이미 등록된 번호입니다." });
+    }
+
+    // 새 번호 저장 (수정: normalizedPhone 사용)
+    await db.query("INSERT INTO family_contacts (phone) VALUES (?)", [normalizedPhone]);
+    res.json({ success: true, message: "가족 연락처가 저장되었습니다." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "DB 저장 실패" });
+  }
 });
 
 
