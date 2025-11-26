@@ -83,37 +83,44 @@ app.post("/api/check-message", async (req, res) => {
 
 // ✅ 사용자 신고 API
 app.post("/api/report", async (req, res) => {
-  const { type, value } = req.body;
+  const { type, value } = req.body;
 
-  if (!type || !value) {
-    return res.status(400).json({ success: false, message: "타입과 값을 입력해야 합니다." });
-  }
-  const normalizedValue = value.replace(/[^0-9]/g, "");
-  try {
-    // 1️⃣ 신고 테이블에서 조회
-    const [rows] = await db.query("SELECT * FROM scam_reports WHERE type = ? AND value = ?", [type, value]);
+  if (!type || !value) {
+    return res.status(400).json({ success: false, message: "타입과 값을 입력해야 합니다." });
+  }
+  
+  // 1. 값 정규화: 숫자만 남김
+  const normalizedValue = value.replace(/[^0-9]/g, "");
+  
+  // 2. DB에 사용할 최종 값 결정: 'phone' 또는 'account' 타입일 때만 정규화된 값 사용
+  const reportValue = (type === 'phone' || type === 'account') ? normalizedValue : value; 
+  
+  try {
+    // 1️⃣ 신고 테이블에서 조회 (수정됨: reportValue 사용)
+    const [rows] = await db.query("SELECT * FROM scam_reports WHERE type = ? AND value = ?", [type, reportValue]);
 
-    if (rows.length > 0) {
-      // 이미 존재하면 카운트 증가
-      const newCount = rows[0].report_count + 1;
-      await db.query("UPDATE scam_reports SET report_count = ? WHERE id = ?", [newCount, rows[0].id]);
+    if (rows.length > 0) {
+      // 이미 존재하면 카운트 증가
+      const newCount = rows[0].report_count + 1;
+      // 카운트 증가 업데이트 (수정 불필요)
+      await db.query("UPDATE scam_reports SET report_count = ? WHERE id = ?", [newCount, rows[0].id]);
 
-      // 5회 이상 신고 시 scam_sources에 저장
-      if (newCount >= 5) {
-        await db.query("INSERT IGNORE INTO scam_sources (type, value) VALUES (?, ?)", [type, value]);
-        return res.json({ success: true, message: "🚨 5회 이상 신고되어 위험 데이터베이스에 등록되었습니다!" });
-      }
+      // 5회 이상 신고 시 scam_sources에 저장 (수정됨: reportValue 사용)
+      if (newCount >= 5) {
+        await db.query("INSERT IGNORE INTO scam_sources (type, value) VALUES (?, ?)", [type, reportValue]);
+        return res.json({ success: true, message: "🚨 5회 이상 신고되어 위험 데이터베이스에 등록되었습니다!" });
+      }
 
-      return res.json({ success: true, message: `✅ 신고 접수됨 (누적 ${newCount}회)` });
-    } else {
-      // 신규 신고라면 추가
-      await db.query("INSERT INTO scam_reports (type, value) VALUES (?, ?)", [type, value]);
-      return res.json({ success: true, message: "✅ 신고 접수됨 (누적 1회)" });
-    }
-  } catch (err) {
-    console.error("❌ 신고 저장 오류:", err);
-    res.status(500).json({ success: false, message: "DB 저장 실패" });
-  }
+      return res.json({ success: true, message: `✅ 신고 접수됨 (누적 ${newCount}회)` });
+    } else {
+      // 신규 신고라면 추가 (수정됨: reportValue 사용)
+      await db.query("INSERT INTO scam_reports (type, value) VALUES (?, ?)", [type, reportValue]);
+      return res.json({ success: true, message: "✅ 신고 접수됨 (누적 1회)" });
+    }
+  } catch (err) {
+    console.error("❌ 신고 저장 오류:", err);
+    res.status(500).json({ success: false, message: "DB 저장 실패" });
+  }
 });
 
 // ✅ 가족 연락처 저장 API
