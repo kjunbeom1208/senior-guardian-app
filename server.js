@@ -88,7 +88,7 @@ app.post("/api/report", async (req, res) => {
   if (!type || !value) {
     return res.status(400).json({ success: false, message: "타입과 값을 입력해야 합니다." });
   }
-
+  const normalizedValue = value.replace(/[^0-9]/g, "");
   try {
     // 1️⃣ 신고 테이블에서 조회
     const [rows] = await db.query("SELECT * FROM scam_reports WHERE type = ? AND value = ?", [type, value]);
