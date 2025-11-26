@@ -5,7 +5,7 @@ import cors from "cors";
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 
-import SolapiMessageService from "solapi";
+import { SolapiMessageService } from "solapi"; // 👈 named import (구조 분해 할당) 방식
 
 
 dotenv.config();
