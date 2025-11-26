@@ -27,7 +27,7 @@ const db = await mysql.createPool({
 
 
 const messageService = new SolapiMessageService(
-  process.env.COOLSMS_API_KEY,
+  process.env.COOLSMS_API_KEYS,
   process.env.COOLSMS_API_SECRET
 );
 
