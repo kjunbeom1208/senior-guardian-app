@@ -10,7 +10,15 @@ import { SolapiMessageService } from "solapi"; // 👈 named import (구조 분�
 
 dotenv.config();
 
-
+// 🔍 신고 사유 자동 추출 함수
+function extractReasonKeyword(text) {
+  if (!text) return "기타";
+  const keywords = [
+    "대출", "투자", "사칭", "당첨", "상품권", "입금", "수익", "코인", "가족", "리딩방", "보이스피싱"
+  ];
+  const found = keywords.filter(k => text.includes(k));
+  return found.length > 0 ? found.join(", ") : "기타";
+}
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
@@ -35,6 +43,7 @@ const messageService = new SolapiMessageService(
 app.post("/api/check-message", async (req, res) => {
   const { message } = req.body;
   let risk = "안전";
+  let reasonSummary = "";
 
   try {
     // 1️⃣ 사기 키워드 검사 (DB)
@@ -48,11 +57,15 @@ app.post("/api/check-message", async (req, res) => {
     const normalizedMessage = message.replace(/[^0-9]/g, ""); 
     if (phones.some(row => normalizedMessage.includes(row.value.replace(/[^0-9]/g, "")))) {
       risk = "위험";
+      const [reasons] = await db.query("SELECT reason FROM scam_reports WHERE type='phone' AND value=?", [normalizedMessage]);
+      reasonSummary = reasons.map(r => r.reason).join(", ");
     }
 
     const [accounts] = await db.query("SELECT value FROM scam_sources WHERE type='account'");
     if (accounts.some(row => message.includes(row.value))) {
       risk = "위험";
+      const [reasons] = await db.query("SELECT reason FROM scam_reports WHERE type='account' AND value=?", [normalizedMessage]);
+      reasonSummary = reasons.map(r => r.reason).join(", ");
     }
 
 
@@ -74,7 +87,7 @@ app.post("/api/check-message", async (req, res) => {
         }
       }
     }
-    res.json({ message, risk });
+    res.json({ message, risk, reason: reasonSummary || "정보없음" });
   } catch (err) {
     console.error("❌ DB 조회 오류:", err);
     res.status(500).json({ error: "DB 조회 오류" });
@@ -83,7 +96,7 @@ app.post("/api/check-message", async (req, res) => {
 
 // ✅ 사용자 신고 API
 app.post("/api/report", async (req, res) => {
-  const { type, value } = req.body;
+  const { type, value, reason } = req.body;
 
   if (!type || !value) {
     return res.status(400).json({ success: false, message: "타입과 값을 입력해야 합니다." });
@@ -95,6 +108,9 @@ app.post("/api/report", async (req, res) => {
   // 2. DB에 사용할 최종 값 결정: 'phone' 또는 'account' 타입일 때만 정규화된 값 사용
   const reportValue = (type === 'phone' || type === 'account') ? normalizedValue : value; 
   
+  // 3.
+  const extractedReason = extractReasonKeyword(reason);
+
   try {
     // 1️⃣ 신고 테이블에서 조회 (수정됨: reportValue 사용)
     const [rows] = await db.query("SELECT * FROM scam_reports WHERE type = ? AND value = ?", [type, reportValue]);
@@ -103,7 +119,9 @@ app.post("/api/report", async (req, res) => {
       // 이미 존재하면 카운트 증가
       const newCount = rows[0].report_count + 1;
       // 카운트 증가 업데이트 (수정 불필요)
-      await db.query("UPDATE scam_reports SET report_count = ? WHERE id = ?", [newCount, rows[0].id]);
+      await db.query(
+    "UPDATE scam_reports SET report_count = ?, reason = CONCAT(reason, ',', ?) WHERE id = ?",
+    [newCount, extractedReason, rows[0].id]);
 
       // 5회 이상 신고 시 scam_sources에 저장 (수정됨: reportValue 사용)
       if (newCount >= 5) {
@@ -114,8 +132,8 @@ app.post("/api/report", async (req, res) => {
       return res.json({ success: true, message: `✅ 신고 접수됨 (누적 ${newCount}회)` });
     } else {
       // 신규 신고라면 추가 (수정됨: reportValue 사용)
-      await db.query("INSERT INTO scam_reports (type, value) VALUES (?, ?)", [type, reportValue]);
-      return res.json({ success: true, message: "✅ 신고 접수됨 (누적 1회)" });
+      await db.query("INSERT INTO scam_reports (type, value, reason) VALUES (?, ?, ?)", [type, reportValue, extractedReason,]);
+      return res.json({ success: true, message: "✅ 신고 접수됨 (누적 1회)", count: 1, reason: extractedReason });
     }
   } catch (err) {
     console.error("❌ 신고 저장 오류:", err);
