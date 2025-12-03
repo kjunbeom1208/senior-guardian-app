@@ -200,7 +200,7 @@ app.post("/api/request-check", async (req, res) => {
         await messageService.sendOne({
           to: f.phone,
           from: process.env.COOLSMS_SENDER,
-          text: `📩 시니어가 확인 요청한 메시지입니다:\n"${message}"\n\n※ 실제 송금 전 반드시 확인해주세요.`,
+          text: `📩 시니어가 확인 요청한 메시지입니다:\n"${message}"\n\n※ 반드시 확인해주세요.`,
         });
         console.log(`📨 ${f.phone}에게 대신 확인 요청 전송 성공`);
       } catch (smsErr) {
