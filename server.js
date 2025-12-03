@@ -118,18 +118,24 @@ app.post("/api/report", async (req, res) => {
     if (rows.length > 0) {
       // 이미 존재하면 카운트 증가
       const newCount = rows[0].report_count + 1;
-      // 카운트 증가 업데이트 (수정 불필요)
+      // 카운트 증가 업데이트 (수정 불필요)]
+      const updatedReason = rows[0].reason
+  ? `${rows[0].reason},${extractedReason}`
+  : extractedReason;
       await db.query(
-    "UPDATE scam_reports SET report_count = ?, reason = CONCAT(reason, ',', ?) WHERE id = ?",
-    [newCount, extractedReason, rows[0].id]);
-
+    "UPDATE scam_reports SET report_count = ?, reason = ? WHERE id = ?",
+    [newCount, updatedReason, rows[0].id]);
+      const reasonList = updatedReason.split(",").filter(Boolean);
+      const freq = {};
+      for (const r of reasonList) freq[r] = (freq[r] || 0) + 1;
+      const topReason = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0] || "기타";
       // 5회 이상 신고 시 scam_sources에 저장 (수정됨: reportValue 사용)
       if (newCount >= 5) {
         await db.query("INSERT IGNORE INTO scam_sources (type, value) VALUES (?, ?)", [type, reportValue]);
-        return res.json({ success: true, message: "🚨 5회 이상 신고되어 위험 데이터베이스에 등록되었습니다!" });
+        return res.json({ success: true, message: "🚨 5회 이상 신고되어 위험 데이터베이스에 등록되었습니다!", count: newCount, topReason: topReason, });
       }
 
-      return res.json({ success: true, message: `✅ 신고 접수됨 (누적 ${newCount}회)` });
+      return res.json({ success: true, message: `✅ 신고 접수됨 (누적 ${newCount}회)`, count: newCount, topReason: topReason, });
     } else {
       // 신규 신고라면 추가 (수정됨: reportValue 사용)
       await db.query("INSERT INTO scam_reports (type, value, reason) VALUES (?, ?, ?)", [type, reportValue, extractedReason,]);
