@@ -158,6 +158,39 @@ app.post("/api/save-family", async (req, res) => {
 });
 
 
+// ✅ 시니어의 ‘대신 확인 요청’ 기능
+app.post("/api/request-check", async (req, res) => {
+  const { message } = req.body; // 시니어가 전달한 의심 문자 내용
+
+  if (!message) {
+    return res.status(400).json({ success: false, message: "확인할 메시지가 필요합니다." });
+  }
+
+  try {
+    // ✅ 보호자 연락처 목록 불러오기
+    const [familyContacts] = await db.query("SELECT phone FROM family_contacts");
+
+    // ✅ 보호자에게 문자 전송
+    for (let f of familyContacts) {
+      try {
+        await messageService.sendOne({
+          to: f.phone,
+          from: process.env.COOLSMS_SENDER,
+          text: `📩 시니어가 확인 요청한 메시지입니다:\n"${message}"\n\n※ 실제 송금 전 반드시 확인해주세요.`,
+        });
+        console.log(`📨 ${f.phone}에게 대신 확인 요청 전송 성공`);
+      } catch (smsErr) {
+        console.error(`❌ ${f.phone} 전송 실패:`, smsErr.message);
+      }
+    }
+
+    res.json({ success: true, message: "보호자에게 확인 요청이 전송되었습니다." });
+  } catch (err) {
+    console.error("❌ 보호자 확인 요청 오류:", err);
+    res.status(500).json({ success: false, message: "요청 처리 실패" });
+  }
+});
+
 // ✅ SMS 보내기 API
 app.post("/api/send-sms", async (req, res) => {
   const { to, message } = req.body;
